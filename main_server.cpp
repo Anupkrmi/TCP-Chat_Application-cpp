@@ -40,9 +40,7 @@ void broadcastMessage(const string& message, SOCKET sender) {
     lock_guard<mutex> lock(clientsMutex);
 
     for (auto &client : clients) {
-        if (client.first != sender) {
-            send(client.first, message.c_str(), message.length(), 0);
-        }
+        send(client.first, message.c_str(), message.length(), 0);
     }
 }
 
