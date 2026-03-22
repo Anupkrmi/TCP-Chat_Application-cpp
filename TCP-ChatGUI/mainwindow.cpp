@@ -27,7 +27,6 @@ MainWindow::~MainWindow()
 void MainWindow::on_connectButton_clicked()
 {
     QString username = ui->usernameLine->text();
-
     if (username.isEmpty()) return;
 
     clientSocket = connectToServer("127.0.0.1", 8080);
@@ -37,12 +36,22 @@ void MainWindow::on_connectButton_clicked()
 
     isConnected = true;
 
+    // 🔥 Start receiving thread
     recvThread = std::thread([this]() {
 
         receiveMessages(clientSocket, [this](std::string msg) {
 
             QMetaObject::invokeMethod(this, [this, msg]() {
-                ui->chatDisplay->append(QString::fromStdString(msg));
+
+                QString qmsg = QString::fromStdString(msg);
+
+                // 👇 Detect user list
+                if (qmsg.startsWith("Online Users:")) {
+                    updateUserList(qmsg);
+                } else {
+                    ui->chatDisplay->append(qmsg);
+                }
+
             });
 
         });
@@ -50,6 +59,10 @@ void MainWindow::on_connectButton_clicked()
     });
 
     ui->chatDisplay->append("Connected as: " + username);
+
+    // 🔥 Request user list
+    std::string listCmd = "/list";
+    send(clientSocket, listCmd.c_str(), listCmd.length(), 0);
 }
 
 void MainWindow::on_sendButton_clicked()
@@ -60,8 +73,22 @@ void MainWindow::on_sendButton_clicked()
     if (message.isEmpty()) return;
 
     std::string msg = message.toStdString();
-
     send(clientSocket, msg.c_str(), msg.length(), 0);
 
     ui->inputLine->clear();
+}
+
+// 🔥 NEW FUNCTION
+void MainWindow::updateUserList(const QString &message)
+{
+    ui->userList->clear();
+
+    QStringList lines = message.split("\n");
+
+    for (const QString &line : lines) {
+        if (line.startsWith("- ")) {
+            QString username = line.mid(2);
+            ui->userList->addItem(username);
+        }
+    }
 }

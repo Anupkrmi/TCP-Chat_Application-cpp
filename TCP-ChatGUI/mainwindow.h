@@ -27,7 +27,10 @@ private:
     int clientSocket;
     std::thread recvThread;
 
-    bool isConnected = false;   // 👈 connection state
+    bool isConnected = false;
+
+    // 👇 NEW
+    void updateUserList(const QString &message);
 };
 
-#endif // MAINWINDOW_H
+#endif
