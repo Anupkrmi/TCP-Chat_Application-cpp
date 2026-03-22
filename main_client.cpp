@@ -9,7 +9,7 @@
 using namespace std;
 
 /*
-    Receive messages
+    Receive messages from server
 */
 void receiveMessages(SOCKET clientSocket) {
     char buffer[1024];
@@ -24,7 +24,7 @@ void receiveMessages(SOCKET clientSocket) {
             break;
         }
 
-        // Clear line and print message cleanly
+        // Clear current line and print incoming message
         cout << "\r" << buffer << endl;
 
         // Reprint prompt
@@ -34,19 +34,43 @@ void receiveMessages(SOCKET clientSocket) {
 }
 
 /*
-    Send messages
+    Send messages (with private chat mode support)
 */
 void sendMessages(SOCKET clientSocket) {
+    string activeChatUser = "";
+
     while (true) {
         string message;
 
         cout << "You: ";
         getline(cin, message);
 
-        if (message == "exit") {
-            break;
+        // ---- Exit private chat ----
+        if (message == "/exit") {
+            if (activeChatUser != "") {
+                cout << "Exited private chat with " << activeChatUser << endl;
+                activeChatUser = "";
+                continue;
+            } else {
+                break;
+            }
         }
 
+        // ---- Enter private chat ----
+        if (message.rfind("/chat ", 0) == 0) {
+            activeChatUser = message.substr(6);
+            cout << "[Private chat with " << activeChatUser << "]\n";
+            continue;
+        }
+
+        // ---- If in private chat ----
+        if (activeChatUser != "") {
+            string fullMsg = "/msg " + activeChatUser + " " + message;
+            send(clientSocket, fullMsg.c_str(), fullMsg.length(), 0);
+            continue;
+        }
+
+        // ---- Normal message ----
         send(clientSocket, message.c_str(), message.length(), 0);
     }
 }

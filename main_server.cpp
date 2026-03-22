@@ -13,12 +13,11 @@
 
 using namespace std;
 
-// Store clients: (socket, username)
 vector<pair<SOCKET, string>> clients;
 mutex clientsMutex;
 
 /*
-    Get current time in [HH:MM] format
+    Get current time
 */
 string getCurrentTime() {
     time_t now = time(0);
@@ -34,7 +33,7 @@ string getCurrentTime() {
 }
 
 /*
-    Broadcast message to all except sender
+    Broadcast message
 */
 void broadcastMessage(const string& message, SOCKET sender) {
     lock_guard<mutex> lock(clientsMutex);
@@ -47,7 +46,7 @@ void broadcastMessage(const string& message, SOCKET sender) {
 }
 
 /*
-    Send private message
+    Private message
 */
 bool sendPrivateMessage(const string& targetUser, const string& message) {
     lock_guard<mutex> lock(clientsMutex);
@@ -63,7 +62,7 @@ bool sendPrivateMessage(const string& targetUser, const string& message) {
 }
 
 /*
-    Send list of users
+    User list
 */
 void sendUserList(SOCKET clientSocket) {
     lock_guard<mutex> lock(clientsMutex);
@@ -78,18 +77,17 @@ void sendUserList(SOCKET clientSocket) {
 }
 
 /*
-    Handle each client
+    Handle client
 */
 void handleClient(SOCKET clientSocket) {
     char buffer[1024];
 
-    // ---- Receive username ----
     memset(buffer, 0, sizeof(buffer));
     recv(clientSocket, buffer, sizeof(buffer), 0);
 
     string username = buffer;
 
-    // ---- Check duplicate username ----
+    // ---- Check duplicate ----
     {
         lock_guard<mutex> lock(clientsMutex);
 
