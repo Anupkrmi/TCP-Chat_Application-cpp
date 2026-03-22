@@ -13,6 +13,7 @@
 
 using namespace std;
 
+// Store (socket, username)
 vector<pair<SOCKET, string>> clients;
 mutex clientsMutex;
 
@@ -33,7 +34,7 @@ string getCurrentTime() {
 }
 
 /*
-    Broadcast message
+    Broadcast to all except sender
 */
 void broadcastMessage(const string& message, SOCKET sender) {
     lock_guard<mutex> lock(clientsMutex);
@@ -46,7 +47,7 @@ void broadcastMessage(const string& message, SOCKET sender) {
 }
 
 /*
-    Private message
+    Send private message
 */
 bool sendPrivateMessage(const string& targetUser, const string& message) {
     lock_guard<mutex> lock(clientsMutex);
@@ -62,7 +63,7 @@ bool sendPrivateMessage(const string& targetUser, const string& message) {
 }
 
 /*
-    Send user list
+    Send list of users
 */
 void sendUserList(SOCKET clientSocket) {
     lock_guard<mutex> lock(clientsMutex);
@@ -77,26 +78,31 @@ void sendUserList(SOCKET clientSocket) {
 }
 
 /*
-    Send help message
+    Send help menu
 */
 void sendHelp(SOCKET clientSocket) {
     string help =
-        "Commands:\n"
-        "/msg <user> <message>  - Send private message\n"
-        "/chat <user>           - Enter private chat mode\n"
-        "/list                  - Show online users\n"
-        "/help                  - Show commands\n"
-        "/exit                  - Exit chat\n";
+        "========== HELP ==========\n"
+        "Messaging:\n"
+        "  /msg <user> <message>\n\n"
+        "Navigation:\n"
+        "  /focus <user> (client-side)\n\n"
+        "General:\n"
+        "  /list\n"
+        "  /help\n"
+        "  /exit\n"
+        "==========================\n";
 
     send(clientSocket, help.c_str(), help.length(), 0);
 }
 
 /*
-    Handle client
+    Handle each client
 */
 void handleClient(SOCKET clientSocket) {
     char buffer[1024];
 
+    // ---- Receive username ----
     memset(buffer, 0, sizeof(buffer));
     recv(clientSocket, buffer, sizeof(buffer), 0);
 
@@ -118,7 +124,9 @@ void handleClient(SOCKET clientSocket) {
         clients.push_back({clientSocket, username});
     }
 
-    string joinMsg = getCurrentTime() + " " + username + " joined the chat";
+    // ---- Join message ----
+    string joinMsg = getCurrentTime() + " " + username + " joined (" 
+                   + to_string(clients.size()) + " users online)";
     cout << joinMsg << endl;
     broadcastMessage(joinMsg, clientSocket);
 
@@ -168,7 +176,8 @@ void handleClient(SOCKET clientSocket) {
                 continue;
             }
 
-            string fullMsg = getCurrentTime() + " [PRIVATE] " + username + ": " + privateMsg;
+            // ---- Format: [PM:username] ----
+            string fullMsg = getCurrentTime() + " [PM:" + username + "] " + privateMsg;
 
             bool sent = sendPrivateMessage(targetUser, fullMsg);
 
@@ -206,6 +215,9 @@ void handleClient(SOCKET clientSocket) {
     closesocket(clientSocket);
 }
 
+/*
+    Main server
+*/
 int main() {
     WSADATA wsa;
     SOCKET serverSocket;
