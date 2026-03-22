@@ -17,7 +17,7 @@ vector<pair<SOCKET, string>> clients;
 mutex clientsMutex;
 
 /*
-    Get current time
+    Get current time [HH:MM]
 */
 string getCurrentTime() {
     time_t now = time(0);
@@ -62,7 +62,7 @@ bool sendPrivateMessage(const string& targetUser, const string& message) {
 }
 
 /*
-    User list
+    Send user list
 */
 void sendUserList(SOCKET clientSocket) {
     lock_guard<mutex> lock(clientsMutex);
@@ -77,6 +77,21 @@ void sendUserList(SOCKET clientSocket) {
 }
 
 /*
+    Send help message
+*/
+void sendHelp(SOCKET clientSocket) {
+    string help =
+        "Commands:\n"
+        "/msg <user> <message>  - Send private message\n"
+        "/chat <user>           - Enter private chat mode\n"
+        "/list                  - Show online users\n"
+        "/help                  - Show commands\n"
+        "/exit                  - Exit chat\n";
+
+    send(clientSocket, help.c_str(), help.length(), 0);
+}
+
+/*
     Handle client
 */
 void handleClient(SOCKET clientSocket) {
@@ -87,7 +102,7 @@ void handleClient(SOCKET clientSocket) {
 
     string username = buffer;
 
-    // ---- Check duplicate ----
+    // ---- Duplicate username check ----
     {
         lock_guard<mutex> lock(clientsMutex);
 
@@ -122,29 +137,53 @@ void handleClient(SOCKET clientSocket) {
 
         string message = buffer;
 
-        // ---- Private message ----
-        if (message.rfind("/msg ", 0) == 0) {
-            int firstSpace = message.find(' ', 5);
-
-            if (firstSpace != string::npos) {
-                string targetUser = message.substr(5, firstSpace - 5);
-                string privateMsg = message.substr(firstSpace + 1);
-
-                string fullMsg = getCurrentTime() + " [PRIVATE] " + username + ": " + privateMsg;
-
-                bool sent = sendPrivateMessage(targetUser, fullMsg);
-
-                if (!sent) {
-                    string error = "User not found: " + targetUser;
-                    send(clientSocket, error.c_str(), error.length(), 0);
-                }
-            }
+        // ---- /help ----
+        if (message == "/help") {
+            sendHelp(clientSocket);
             continue;
         }
 
-        // ---- User list ----
+        // ---- /list ----
         if (message == "/list") {
             sendUserList(clientSocket);
+            continue;
+        }
+
+        // ---- /msg ----
+        if (message.rfind("/msg ", 0) == 0) {
+            int firstSpace = message.find(' ', 5);
+
+            if (firstSpace == string::npos) {
+                string error = "Usage: /msg <user> <message>";
+                send(clientSocket, error.c_str(), error.length(), 0);
+                continue;
+            }
+
+            string targetUser = message.substr(5, firstSpace - 5);
+            string privateMsg = message.substr(firstSpace + 1);
+
+            if (privateMsg.empty()) {
+                string error = "Message cannot be empty.";
+                send(clientSocket, error.c_str(), error.length(), 0);
+                continue;
+            }
+
+            string fullMsg = getCurrentTime() + " [PRIVATE] " + username + ": " + privateMsg;
+
+            bool sent = sendPrivateMessage(targetUser, fullMsg);
+
+            if (!sent) {
+                string error = "User not found: " + targetUser;
+                send(clientSocket, error.c_str(), error.length(), 0);
+            }
+
+            continue;
+        }
+
+        // ---- Unknown command ----
+        if (!message.empty() && message[0] == '/') {
+            string error = "Unknown command. Type /help";
+            send(clientSocket, error.c_str(), error.length(), 0);
             continue;
         }
 

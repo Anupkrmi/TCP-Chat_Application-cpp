@@ -8,9 +8,6 @@
 
 using namespace std;
 
-/*
-    Receive messages from server
-*/
 void receiveMessages(SOCKET clientSocket) {
     char buffer[1024];
 
@@ -24,18 +21,12 @@ void receiveMessages(SOCKET clientSocket) {
             break;
         }
 
-        // Clear current line and print incoming message
         cout << "\r" << buffer << endl;
-
-        // Reprint prompt
         cout << "You: ";
         cout.flush();
     }
 }
 
-/*
-    Send messages (with private chat mode support)
-*/
 void sendMessages(SOCKET clientSocket) {
     string activeChatUser = "";
 
@@ -45,7 +36,6 @@ void sendMessages(SOCKET clientSocket) {
         cout << "You: ";
         getline(cin, message);
 
-        // ---- Exit private chat ----
         if (message == "/exit") {
             if (activeChatUser != "") {
                 cout << "Exited private chat with " << activeChatUser << endl;
@@ -56,21 +46,23 @@ void sendMessages(SOCKET clientSocket) {
             }
         }
 
-        // ---- Enter private chat ----
         if (message.rfind("/chat ", 0) == 0) {
+            if (message.length() <= 6) {
+                cout << "Usage: /chat <username>\n";
+                continue;
+            }
+
             activeChatUser = message.substr(6);
             cout << "[Private chat with " << activeChatUser << "]\n";
             continue;
         }
 
-        // ---- If in private chat ----
         if (activeChatUser != "") {
             string fullMsg = "/msg " + activeChatUser + " " + message;
             send(clientSocket, fullMsg.c_str(), fullMsg.length(), 0);
             continue;
         }
 
-        // ---- Normal message ----
         send(clientSocket, message.c_str(), message.length(), 0);
     }
 }
@@ -98,14 +90,12 @@ int main() {
 
     cout << "Connected to server!\n";
 
-    // ---- Username ----
     string username;
     cout << "Enter your username: ";
     getline(cin, username);
 
     send(clientSocket, username.c_str(), username.length(), 0);
 
-    // ---- Threads ----
     thread recvThread(receiveMessages, clientSocket);
     thread sendThread(sendMessages, clientSocket);
 
