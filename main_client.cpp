@@ -9,7 +9,7 @@
 using namespace std;
 
 /*
-    Receive messages from server
+    Receive messages
 */
 void receiveMessages(SOCKET clientSocket) {
     char buffer[1024];
@@ -24,14 +24,19 @@ void receiveMessages(SOCKET clientSocket) {
             break;
         }
 
-        cout << "\n" << buffer << endl;
+        // Clear line and print message cleanly
+        cout << "\r" << buffer << endl;
+
+        // Reprint prompt
+        cout << "You: ";
+        cout.flush();
     }
 }
 
 /*
-    Send messages or commands
+    Send messages
 */
-void sendMessages(SOCKET clientSocket, string username) {
+void sendMessages(SOCKET clientSocket) {
     while (true) {
         string message;
 
@@ -42,7 +47,6 @@ void sendMessages(SOCKET clientSocket, string username) {
             break;
         }
 
-        // Send raw message (server handles parsing)
         send(clientSocket, message.c_str(), message.length(), 0);
     }
 }
@@ -79,7 +83,7 @@ int main() {
 
     // ---- Threads ----
     thread recvThread(receiveMessages, clientSocket);
-    thread sendThread(sendMessages, clientSocket, username);
+    thread sendThread(sendMessages, clientSocket);
 
     recvThread.join();
     sendThread.join();

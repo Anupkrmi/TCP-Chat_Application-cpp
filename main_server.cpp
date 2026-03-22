@@ -5,20 +5,36 @@
 #include <mutex>
 #include <algorithm>
 #include <cstring>
+#include <ctime>
+#include <sstream>
+#include <iomanip>
 
 #pragma comment(lib, "ws2_32.lib")
 
 using namespace std;
 
-/*
-    Store clients as:
-    SOCKET + username
-*/
+// Store clients: (socket, username)
 vector<pair<SOCKET, string>> clients;
 mutex clientsMutex;
 
 /*
-    Broadcast message to all clients except sender
+    Get current time in [HH:MM] format
+*/
+string getCurrentTime() {
+    time_t now = time(0);
+    tm *ltm = localtime(&now);
+
+    stringstream ss;
+    ss << "["
+       << setw(2) << setfill('0') << ltm->tm_hour << ":"
+       << setw(2) << setfill('0') << ltm->tm_min
+       << "]";
+
+    return ss.str();
+}
+
+/*
+    Broadcast message to all except sender
 */
 void broadcastMessage(const string& message, SOCKET sender) {
     lock_guard<mutex> lock(clientsMutex);
@@ -31,21 +47,23 @@ void broadcastMessage(const string& message, SOCKET sender) {
 }
 
 /*
-    Send private message to a specific user
+    Send private message
 */
-void sendPrivateMessage(const string& targetUser, const string& message) {
+bool sendPrivateMessage(const string& targetUser, const string& message) {
     lock_guard<mutex> lock(clientsMutex);
 
     for (auto &client : clients) {
         if (client.second == targetUser) {
             send(client.first, message.c_str(), message.length(), 0);
-            return;
+            return true;
         }
     }
+
+    return false;
 }
 
 /*
-    Send list of online users to requesting client
+    Send list of users
 */
 void sendUserList(SOCKET clientSocket) {
     lock_guard<mutex> lock(clientsMutex);
@@ -60,42 +78,53 @@ void sendUserList(SOCKET clientSocket) {
 }
 
 /*
-    Handle each client connection
+    Handle each client
 */
 void handleClient(SOCKET clientSocket) {
     char buffer[1024];
 
-    // ---- Step 1: Receive username ----
+    // ---- Receive username ----
     memset(buffer, 0, sizeof(buffer));
     recv(clientSocket, buffer, sizeof(buffer), 0);
 
     string username = buffer;
 
+    // ---- Check duplicate username ----
     {
         lock_guard<mutex> lock(clientsMutex);
+
+        for (auto &client : clients) {
+            if (client.second == username) {
+                string msg = "Username already taken. Disconnecting.";
+                send(clientSocket, msg.c_str(), msg.length(), 0);
+                closesocket(clientSocket);
+                return;
+            }
+        }
+
         clients.push_back({clientSocket, username});
     }
 
-    cout << username << " joined the chat\n";
-    broadcastMessage(username + " joined the chat", clientSocket);
+    string joinMsg = getCurrentTime() + " " + username + " joined the chat";
+    cout << joinMsg << endl;
+    broadcastMessage(joinMsg, clientSocket);
 
-    // ---- Step 2: Chat loop ----
+    // ---- Chat loop ----
     while (true) {
         memset(buffer, 0, sizeof(buffer));
 
         int bytesReceived = recv(clientSocket, buffer, sizeof(buffer), 0);
 
         if (bytesReceived <= 0) {
-            cout << username << " left the chat\n";
-            broadcastMessage(username + " left the chat", clientSocket);
+            string leaveMsg = getCurrentTime() + " " + username + " left the chat";
+            cout << leaveMsg << endl;
+            broadcastMessage(leaveMsg, clientSocket);
             break;
         }
 
         string message = buffer;
 
-        // ---- Handle commands ----
-
-        // Private message: /msg username message
+        // ---- Private message ----
         if (message.rfind("/msg ", 0) == 0) {
             int firstSpace = message.find(' ', 5);
 
@@ -103,22 +132,29 @@ void handleClient(SOCKET clientSocket) {
                 string targetUser = message.substr(5, firstSpace - 5);
                 string privateMsg = message.substr(firstSpace + 1);
 
-                string fullMsg = "[PRIVATE] " + username + ": " + privateMsg;
+                string fullMsg = getCurrentTime() + " [PRIVATE] " + username + ": " + privateMsg;
 
-                sendPrivateMessage(targetUser, fullMsg);
+                bool sent = sendPrivateMessage(targetUser, fullMsg);
+
+                if (!sent) {
+                    string error = "User not found: " + targetUser;
+                    send(clientSocket, error.c_str(), error.length(), 0);
+                }
             }
             continue;
         }
 
-        // User list command
+        // ---- User list ----
         if (message == "/list") {
             sendUserList(clientSocket);
             continue;
         }
 
         // ---- Normal message ----
-        cout << message << endl;
-        broadcastMessage(message, clientSocket);
+        string timedMessage = getCurrentTime() + " " + username + ": " + message;
+
+        cout << timedMessage << endl;
+        broadcastMessage(timedMessage, clientSocket);
     }
 
     // ---- Remove client ----
