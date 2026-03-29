@@ -24,12 +24,12 @@ private slots:
 private:
     Ui::MainWindow *ui;
 
-    int clientSocket;
-    std::thread recvThread;
+    int clientSocket;              // socket for communication
+    std::thread recvThread;        // background thread for receiving messages
 
-    bool isConnected = false;
+    bool isConnected = false;      // prevents sending before connection
 
-    // 👇 NEW
+    // updates left sidebar (user list)
     void updateUserList(const QString &message);
 };
 

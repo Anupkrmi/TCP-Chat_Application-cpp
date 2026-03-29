@@ -13,6 +13,7 @@ MainWindow::MainWindow(QWidget *parent)
 
 MainWindow::~MainWindow()
 {
+    // clean shutdown
     if (isConnected)
     {
         closesocket(clientSocket);
@@ -24,6 +25,12 @@ MainWindow::~MainWindow()
     delete ui;
 }
 
+/*
+    CONNECT BUTTON
+    - reads username
+    - connects to server
+    - starts receive thread
+*/
 void MainWindow::on_connectButton_clicked()
 {
     QString username = ui->usernameLine->text();
@@ -32,11 +39,13 @@ void MainWindow::on_connectButton_clicked()
     clientSocket = connectToServer("127.0.0.1", 8080);
 
     std::string uname = username.toStdString();
+
+    // first thing server expects → username
     send(clientSocket, uname.c_str(), uname.length(), 0);
 
     isConnected = true;
 
-    // 🔥 Start receiving thread
+    // start background thread for receiving messages
     recvThread = std::thread([this]() {
 
         receiveMessages(clientSocket, [this](std::string msg) {
@@ -45,12 +54,38 @@ void MainWindow::on_connectButton_clicked()
 
                 QString qmsg = QString::fromStdString(msg);
 
-                // 👇 Detect user list
+                // -------- USER LIST RESPONSE --------
                 if (qmsg.startsWith("Online Users:")) {
                     updateUserList(qmsg);
-                } else {
-                    ui->chatDisplay->append(qmsg);
+                    return;
                 }
+
+                // -------- JOIN / LEAVE EVENTS --------
+                if (qmsg.contains("joined") || qmsg.contains("left")) {
+                    ui->chatDisplay->append(qmsg);
+
+                    // ask server again for updated list
+                    std::string listCmd = "/list";
+                    send(clientSocket, listCmd.c_str(), listCmd.length(), 0);
+                    return;
+                }
+
+                // -------- NORMAL MESSAGE FORMATTING --------
+                // Expected format:
+                // [12:30] Anup: Hello
+
+                QString time = qmsg.section(' ', 0, 0);
+                QString user = qmsg.section(' ', 1, 1).replace(":", "");
+                QString text = qmsg.section(' ', 2);
+
+                QString formatted =
+                    "<div style='margin:6px;'>"
+                    "<span style='color:#888;'>" + time + "</span> "
+                             "<b>" + user + "</b>: "
+                    + text +
+                    "</div>";
+
+                ui->chatDisplay->append(formatted);
 
             });
 
@@ -60,11 +95,15 @@ void MainWindow::on_connectButton_clicked()
 
     ui->chatDisplay->append("Connected as: " + username);
 
-    // 🔥 Request user list
+    // request user list immediately after connecting
     std::string listCmd = "/list";
     send(clientSocket, listCmd.c_str(), listCmd.length(), 0);
 }
 
+/*
+    SEND BUTTON
+    - sends message to server
+*/
 void MainWindow::on_sendButton_clicked()
 {
     if (!isConnected) return;
@@ -78,7 +117,13 @@ void MainWindow::on_sendButton_clicked()
     ui->inputLine->clear();
 }
 
-// 🔥 NEW FUNCTION
+/*
+    PARSE USER LIST
+    Format received:
+    Online Users:
+    - Anup
+    - Kanak
+*/
 void MainWindow::updateUserList(const QString &message)
 {
     ui->userList->clear();

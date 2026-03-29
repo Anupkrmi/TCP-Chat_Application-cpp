@@ -161,7 +161,7 @@ int main() {
     thread sendThread(sendMessages, clientSocket);
 
     recvThread.join();
-    sendThread.join();
+     sendThread.join();
 
     closesocket(clientSocket);
     WSACleanup();

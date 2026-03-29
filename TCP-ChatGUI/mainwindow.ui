@@ -17,10 +17,10 @@
    <widget class="QWidget" name="">
     <property name="geometry">
      <rect>
-      <x>73</x>
-      <y>110</y>
-      <width>522</width>
-      <height>262</height>
+      <x>0</x>
+      <y>0</y>
+      <width>821</width>
+      <height>551</height>
      </rect>
     </property>
     <layout class="QHBoxLayout" name="horizontalLayout_3" stretch="1,2">
